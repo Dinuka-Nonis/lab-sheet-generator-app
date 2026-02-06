@@ -15,15 +15,12 @@ def main():
     # Register all templates (IMPORTANT: This must happen before any template usage)
     from app.templates import classic_template, sliit_template
     
+    # Apply theme (V2.0 uses light theme only)
+    theme_manager = ThemeManager()
+    app.setStyleSheet(theme_manager.get_stylesheet())
+    
     # Initialize configuration
     config = Config()
-    config_data = config.load_config()
-    
-    # Apply theme
-    theme_manager = ThemeManager()
-    if config_data:
-        theme_manager.set_theme(config_data.get('theme', 'light'))
-    app.setStyleSheet(theme_manager.get_stylesheet())
     
     # Check if first run
     if config.is_first_run():

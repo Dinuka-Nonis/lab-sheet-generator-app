@@ -1,6 +1,6 @@
 """
 Template Selector Dialog for Lab Sheet Generator V2.0.0
-Allows users to choose which template to use for generating documents
+Allows users to choose templates with visual previews
 """
 
 from PySide6.QtWidgets import (
@@ -8,13 +8,93 @@ from PySide6.QtWidgets import (
     QButtonGroup, QRadioButton, QScrollArea, QWidget, QFrame
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QPainter, QColor, QFont
+from pathlib import Path
 
 from app.core.template_manager import get_template_manager
 
 
+class TemplatePreviewWidget(QLabel):
+    """Widget that shows a preview of the template."""
+    
+    def __init__(self, template_id, parent=None):
+        super().__init__(parent)
+        self.template_id = template_id
+        self.setFixedSize(200, 140)
+        self.setStyleSheet("""
+            QLabel {
+                background-color: white;
+                border: 1px solid #e1e4e8;
+                border-radius: 6px;
+            }
+        """)
+        self.setAlignment(Qt.AlignCenter)
+        
+        # Try to load preview image
+        preview_path = Path(__file__).parent.parent / "ui" / "assets" / f"{template_id}_preview.png"
+        
+        if preview_path.exists():
+            pixmap = QPixmap(str(preview_path))
+            scaled_pixmap = pixmap.scaled(198, 138, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.setPixmap(scaled_pixmap)
+        else:
+            # Generate simple preview
+            self.generate_preview()
+    
+    def generate_preview(self):
+        """Generate a simple preview representation."""
+        pixmap = QPixmap(200, 140)
+        pixmap.fill(QColor("#f8f9fa"))
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        if self.template_id == "classic":
+            # Blue header bar
+            painter.fillRect(0, 0, 200, 20, QColor("#156082"))
+            
+            # Logo placeholder
+            painter.setPen(QColor("#d1d5db"))
+            painter.drawRect(80, 30, 40, 40)
+            painter.drawText(85, 55, "Logo")
+            
+            # Title lines
+            painter.setPen(QColor("#1a1a1a"))
+            painter.setFont(QFont("Arial", 8, QFont.Bold))
+            painter.drawText(40, 85, "Module Name - Code")
+            
+            painter.setFont(QFont("Arial", 6))
+            painter.drawText(10, 100, "Practical 01")
+            painter.drawText(10, 112, "Student Name - ID")
+            
+        elif self.template_id == "sliit":
+            # Logo top right
+            painter.setPen(QColor("#d1d5db"))
+            painter.drawRect(150, 10, 40, 30)
+            painter.drawText(158, 28, "Logo")
+            
+            # Large title
+            painter.setPen(QColor("#0E2841"))
+            painter.setFont(QFont("Arial", 12, QFont.Bold))
+            painter.drawText(10, 60, "Lab 01")
+            
+            painter.setFont(QFont("Arial", 7, QFont.Bold))
+            painter.drawText(10, 75, "Module (CODE)")
+            
+            # Student info at bottom
+            painter.setFont(QFont("Arial", 6))
+            painter.drawText(120, 130, "ID - Name")
+            
+            # Border
+            painter.setPen(QColor("#1a1a1a"))
+            painter.drawRect(1, 1, 198, 138)
+        
+        painter.end()
+        self.setPixmap(pixmap)
+
+
 class TemplateCard(QFrame):
-    """Widget representing a single template option."""
+    """Widget representing a single template option with preview."""
     
     clicked = Signal(str)  # Emits template ID when clicked
     
@@ -25,7 +105,6 @@ class TemplateCard(QFrame):
         self.is_selected = is_selected
         
         self.setFrameStyle(QFrame.Box)
-        self.setLineWidth(2)
         self.setCursor(Qt.PointingHandCursor)
         
         # Set initial style
@@ -33,21 +112,33 @@ class TemplateCard(QFrame):
         
         # Layout
         layout = QVBoxLayout()
-        layout.setSpacing(8)
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
         
-        # Radio button for selection
+        # Preview
+        self.preview = TemplatePreviewWidget(template_id)
+        layout.addWidget(self.preview, 0, Qt.AlignCenter)
+        
+        # Radio button and name in horizontal layout
+        header_layout = QHBoxLayout()
+        
         self.radio = QRadioButton()
         self.radio.setChecked(is_selected)
         self.radio.toggled.connect(self.on_radio_toggled)
+        header_layout.addWidget(self.radio)
         
-        # Template name
         name_label = QLabel(template_name)
-        name_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        name_label.setStyleSheet("font-size: 15px; font-weight: bold;")
+        header_layout.addWidget(name_label)
+        header_layout.addStretch()
+        
+        layout.addLayout(header_layout)
         
         # Template description
         desc_label = QLabel(template_description)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: gray; font-size: 12px;")
+        desc_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        layout.addWidget(desc_label)
         
         # Font requirements check
         manager = get_template_manager()
@@ -57,47 +148,41 @@ class TemplateCard(QFrame):
         if not all(font_status.values()):
             missing_fonts = [font for font, available in font_status.items() if not available]
             warning_label = QLabel(f"⚠️  Missing fonts: {', '.join(missing_fonts)}")
-            warning_label.setStyleSheet("color: #ff9500; font-size: 11px; font-style: italic;")
+            warning_label.setStyleSheet("color: #f59e0b; font-size: 11px; font-style: italic;")
             warning_label.setWordWrap(True)
+            layout.addWidget(warning_label)
         else:
-            warning_label = QLabel("✓ All fonts available")
-            warning_label.setStyleSheet("color: green; font-size: 11px;")
-        
-        # Add widgets to layout
-        layout.addWidget(self.radio)
-        layout.addWidget(name_label)
-        layout.addWidget(desc_label)
-        layout.addWidget(warning_label)
+            check_label = QLabel("✓ All fonts available")
+            check_label.setStyleSheet("color: #10b981; font-size: 11px;")
+            layout.addWidget(check_label)
         
         self.setLayout(layout)
-        self.setMinimumHeight(120)
-        self.setMaximumHeight(150)
+        self.setMinimumHeight(280)
+        self.setMaximumHeight(320)
     
     def update_style(self):
         """Update widget style based on selection state."""
         if self.is_selected:
             self.setStyleSheet("""
                 TemplateCard {
-                    border: 2px solid #007aff;
-                    border-radius: 8px;
-                    background-color: rgba(0, 122, 255, 0.05);
-                    padding: 12px;
+                    border: 2px solid #5b8def;
+                    border-radius: 10px;
+                    background-color: #eff6ff;
                 }
                 TemplateCard:hover {
-                    background-color: rgba(0, 122, 255, 0.1);
+                    background-color: #dbeafe;
                 }
             """)
         else:
             self.setStyleSheet("""
                 TemplateCard {
-                    border: 1.5px solid #d2d2d7;
-                    border-radius: 8px;
-                    background-color: transparent;
-                    padding: 12px;
+                    border: 1.5px solid #e1e4e8;
+                    border-radius: 10px;
+                    background-color: white;
                 }
                 TemplateCard:hover {
-                    border: 2px solid #007aff;
-                    background-color: rgba(0, 122, 255, 0.02);
+                    border: 2px solid #5b8def;
+                    background-color: #f9fafb;
                 }
             """)
     
@@ -127,7 +212,7 @@ class TemplateSelectorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Select Template")
         self.setModal(True)
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(700, 600)
         
         self.selected_template_id = current_template_id
         self.template_cards = {}
@@ -137,28 +222,35 @@ class TemplateSelectorDialog(QDialog):
     def init_ui(self):
         """Initialize the user interface."""
         layout = QVBoxLayout()
-        layout.setSpacing(20)
+        layout.setSpacing(24)
+        layout.setContentsMargins(24, 24, 24, 24)
         
         # Title
         title = QLabel("Choose Document Template")
-        title.setStyleSheet("font-size: 20px; font-weight: bold;")
-        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 22px; font-weight: bold;")
+        title.setAlignment(Qt.AlignLeft)
         layout.addWidget(title)
         
         # Subtitle
-        subtitle = QLabel("Select the template you want to use for generating lab sheets")
-        subtitle.setStyleSheet("color: gray; font-size: 13px;")
-        subtitle.setAlignment(Qt.AlignCenter)
+        subtitle = QLabel("Select the template design for your lab sheets")
+        subtitle.setStyleSheet("color: #6b7280; font-size: 14px;")
+        subtitle.setAlignment(Qt.AlignLeft)
         layout.addWidget(subtitle)
         
         # Scroll area for templates
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+        """)
         
         scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout()
-        scroll_layout.setSpacing(12)
+        scroll_layout = QHBoxLayout()  # Changed to horizontal for side-by-side cards
+        scroll_layout.setSpacing(16)
         
         # Get available templates
         manager = get_template_manager()
@@ -197,7 +289,14 @@ class TemplateSelectorDialog(QDialog):
             "the document will use system defaults which may affect appearance."
         )
         info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: gray; font-size: 11px; font-style: italic;")
+        info_label.setStyleSheet("""
+            color: #6b7280; 
+            font-size: 12px; 
+            font-style: italic;
+            background-color: #f9fafb;
+            padding: 12px;
+            border-radius: 6px;
+        """)
         layout.addWidget(info_label)
         
         # Buttons
@@ -206,10 +305,12 @@ class TemplateSelectorDialog(QDialog):
         
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setProperty("styleClass", "secondary")
+        cancel_btn.setMinimumWidth(100)
         cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(cancel_btn)
         
         select_btn = QPushButton("Select Template")
+        select_btn.setMinimumWidth(140)
         select_btn.clicked.connect(self.accept)
         select_btn.setDefault(True)
         button_layout.addWidget(select_btn)
