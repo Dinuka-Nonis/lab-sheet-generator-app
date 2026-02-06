@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QFormLayout, QFileDialog, QApplication, QScrollArea, QSizePolicy
 )
 from PySide6.QtCore import Qt, QThread, Signal, QSize
-from PySide6.QtGui import QAction, QPixmap
+from PySide6.QtGui import QAction, QPixmap, QPalette, QColor
 from app.core.template_manager import get_template_manager
 from app.utils.paths import get_output_dir
 import os
@@ -67,12 +67,33 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Lab Sheet Generator V2.0")
         self.setMinimumSize(820, 720)
         
+        # Set white title bar and window colors
+        self.set_white_title_bar()
+        
         self.init_ui()
         self.init_menu()
+    
+    def set_white_title_bar(self):
+        """Set the title bar to white for better aesthetics."""
+        # Set window background to white
+        palette = self.palette()
+        palette.setColor(QPalette.Window, QColor(255, 255, 255))
+        palette.setColor(QPalette.WindowText, QColor(26, 26, 26))
+        self.setPalette(palette)
     
     def init_menu(self):
         """Initialize menu bar."""
         menubar = self.menuBar()
+        
+        # Style the menu bar to be white
+        menubar.setStyleSheet("""
+            QMenuBar {
+                background-color: white;
+                color: #24292e;
+                font-size: 14px;
+                font-weight: 500;
+            }
+        """)
         
         # File menu
         file_menu = menubar.addMenu("File")
@@ -136,19 +157,24 @@ class MainWindow(QMainWindow):
         
         # Header
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(6)
+        header_layout.setSpacing(8)
         
         header = QLabel("Lab Sheet Generator")
         header.setStyleSheet("""
-            font-size: 28px; 
-            font-weight: 600; 
-            color: #24292e;
+            font-size: 32px; 
+            font-weight: 700; 
+            color: #1a1a1a;
+            letter-spacing: -0.5px;
         """)
         header.setAlignment(Qt.AlignLeft)
         header_layout.addWidget(header)
         
         subtitle = QLabel("Generate professional lab sheet documents")
-        subtitle.setStyleSheet("font-size: 15px; color: #586069;")
+        subtitle.setStyleSheet("""
+            font-size: 16px; 
+            color: #586069;
+            font-weight: 400;
+        """)
         subtitle.setAlignment(Qt.AlignLeft)
         header_layout.addWidget(subtitle)
         
@@ -156,10 +182,20 @@ class MainWindow(QMainWindow):
         
         # Student Info Display
         info_group = QGroupBox("Your Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+                font-weight: 600;
+            }
+        """)
         info_layout = QVBoxLayout()
         
         self.student_info_label = QLabel()
-        self.student_info_label.setStyleSheet("font-size: 14px; padding: 10px; line-height: 1.6;")
+        self.student_info_label.setStyleSheet("""
+            font-size: 15px; 
+            padding: 12px; 
+            line-height: 1.6;
+        """)
         self.student_info_label.setWordWrap(True)
         self.update_student_info_display()
         info_layout.addWidget(self.student_info_label)
@@ -169,28 +205,43 @@ class MainWindow(QMainWindow):
         
         # Logo Status
         logo_group = QGroupBox("University Logo")
+        logo_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+                font-weight: 600;
+            }
+        """)
         logo_layout = QHBoxLayout()
         
         self.logo_preview = QLabel()
         self.logo_preview.setFixedSize(90, 86)
         self.logo_preview.setStyleSheet("""
             border: 1px solid #e1e4e8;
-            border-radius: 6px;
+            border-radius: 8px;
             background-color: #f6f8fa;
         """)
         self.logo_preview.setAlignment(Qt.AlignCenter)
         
-        logo_path = self.config.get_logo_path()
+        # Get logo for current template
+        logo_path = self.get_current_template_logo()
         if logo_path and logo_path.exists():
             pixmap = QPixmap(str(logo_path))
             scaled_pixmap = pixmap.scaled(88, 84, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.logo_preview.setPixmap(scaled_pixmap)
             self.logo_status_label = QLabel("✓ Logo loaded")
-            self.logo_status_label.setStyleSheet("color: #28a745; font-weight: 600; font-size: 14px;")
+            self.logo_status_label.setStyleSheet("""
+                color: #28a745; 
+                font-weight: 600; 
+                font-size: 15px;
+            """)
         else:
             self.logo_preview.setText("No Logo")
             self.logo_status_label = QLabel("⚠ No logo set")
-            self.logo_status_label.setStyleSheet("color: #ffa500; font-weight: 600; font-size: 14px;")
+            self.logo_status_label.setStyleSheet("""
+                color: #ffa500; 
+                font-weight: 600; 
+                font-size: 15px;
+            """)
         
         logo_layout.addWidget(self.logo_preview)
         logo_layout.addWidget(self.logo_status_label, 0, Qt.AlignVCenter)
@@ -201,88 +252,136 @@ class MainWindow(QMainWindow):
         
         # Generator Section
         generator_group = QGroupBox("Generate Lab Sheet")
+        generator_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+                font-weight: 600;
+            }
+        """)
         generator_layout = QFormLayout()
         generator_layout.setSpacing(18)
         generator_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         generator_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
         
+        # Style for form labels
+        label_style = "font-size: 15px; font-weight: 500; color: #24292e;"
+        
         # Module selection
         self.module_combo = QComboBox()
         self.module_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.module_combo.setMinimumHeight(40)
+        self.module_combo.setMinimumHeight(44)
         self.module_combo.currentIndexChanged.connect(self.on_module_changed)
-        generator_layout.addRow("Select Module:", self.module_combo)
+        
+        module_label = QLabel("Select Module:")
+        module_label.setStyleSheet(label_style)
+        generator_layout.addRow(module_label, self.module_combo)
         
         # Sheet type display
         self.sheet_type_label = QLabel("Practical")
-        self.sheet_type_label.setStyleSheet("font-weight: 600; font-size: 14px; color: #24292e;")
-        generator_layout.addRow("Sheet Type:", self.sheet_type_label)
+        self.sheet_type_label.setStyleSheet("""
+            font-weight: 600; 
+            font-size: 15px; 
+            color: #24292e;
+        """)
+        
+        type_label = QLabel("Sheet Type:")
+        type_label.setStyleSheet(label_style)
+        generator_layout.addRow(type_label, self.sheet_type_label)
         
         # Template display and change button
         template_layout = QHBoxLayout()
         template_layout.setSpacing(12)
         
         self.template_label = QLabel("Template: Classic")
-        self.template_label.setStyleSheet("font-weight: 600; font-size: 14px; color: #5b8def;")
+        self.template_label.setStyleSheet("""
+            font-weight: 600; 
+            font-size: 15px; 
+            color: #5b8def;
+        """)
         self.template_label.setWordWrap(True)
         template_layout.addWidget(self.template_label, 1)
         
         self.change_template_btn = QPushButton("Change Template")
         self.change_template_btn.setProperty("styleClass", "secondary")
-        self.change_template_btn.setMinimumWidth(150)
-        self.change_template_btn.setMinimumHeight(38)
+        self.change_template_btn.setMinimumWidth(160)
+        self.change_template_btn.setMinimumHeight(42)
+        self.change_template_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 14px;
+                font-weight: 600;
+            }
+        """)
         self.change_template_btn.clicked.connect(self.change_template)
         self.change_template_btn.setEnabled(False)
         template_layout.addWidget(self.change_template_btn)
         
         template_widget = QWidget()
         template_widget.setLayout(template_layout)
-        generator_layout.addRow("Document Template:", template_widget)
+        
+        template_label_widget = QLabel("Document Template:")
+        template_label_widget.setStyleSheet(label_style)
+        generator_layout.addRow(template_label_widget, template_widget)
         
         # Sheet number
         self.sheet_spin = QSpinBox()
-        self.sheet_spin.setMinimumHeight(40)
+        self.sheet_spin.setMinimumHeight(44)
         self.sheet_spin.setMinimum(1)
         self.sheet_spin.setMaximum(99)
         self.sheet_spin.setValue(1)
         self.sheet_spin.valueChanged.connect(self.update_filename_preview)
-        generator_layout.addRow("Sheet Number:", self.sheet_spin)
+        
+        sheet_num_label = QLabel("Sheet Number:")
+        sheet_num_label.setStyleSheet(label_style)
+        generator_layout.addRow(sheet_num_label, self.sheet_spin)
         
         # Output path with browse button
         output_layout = QHBoxLayout()
         output_layout.setSpacing(12)
         
         self.output_path_label = QLabel()
-        self.output_path_label.setStyleSheet("font-size: 13px; color: #586069;")
+        self.output_path_label.setStyleSheet("font-size: 14px; color: #586069;")
         self.output_path_label.setWordWrap(True)
         self.output_path_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         output_layout.addWidget(self.output_path_label, 1)
         
         browse_output_btn = QPushButton("Browse...")
         browse_output_btn.setProperty("styleClass", "secondary")
-        browse_output_btn.setMinimumWidth(100)
-        browse_output_btn.setMinimumHeight(38)
+        browse_output_btn.setMinimumWidth(110)
+        browse_output_btn.setMinimumHeight(42)
+        browse_output_btn.setStyleSheet("""
+            QPushButton {
+                font-size: 14px;
+                font-weight: 600;
+            }
+        """)
         browse_output_btn.clicked.connect(self.browse_module_output_path)
         output_layout.addWidget(browse_output_btn)
         
         output_widget = QWidget()
         output_widget.setLayout(output_layout)
-        generator_layout.addRow("Output Path:", output_widget)
+        
+        output_label_widget = QLabel("Output Path:")
+        output_label_widget.setStyleSheet(label_style)
+        generator_layout.addRow(output_label_widget, output_widget)
         
         # Filename preview
         self.filename_preview = QLabel()
         self.filename_preview.setStyleSheet("""
-            padding: 12px 16px;
+            padding: 14px 18px;
             border: 1px solid #e1e4e8;
-            border-radius: 6px;
+            border-radius: 8px;
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
+            font-size: 14px;
             background-color: #f6f8fa;
             color: #24292e;
+            font-weight: 500;
         """)
         self.filename_preview.setWordWrap(True)
         self.filename_preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        generator_layout.addRow("File Preview:", self.filename_preview)
+        
+        preview_label_widget = QLabel("File Preview:")
+        preview_label_widget.setStyleSheet(label_style)
+        generator_layout.addRow(preview_label_widget, self.filename_preview)
         
         generator_group.setLayout(generator_layout)
         main_layout.addWidget(generator_group)
@@ -292,12 +391,13 @@ class MainWindow(QMainWindow):
         button_layout.addStretch()
         
         self.generate_btn = QPushButton("Generate Lab Sheet")
-        self.generate_btn.setMinimumWidth(200)
-        self.generate_btn.setMinimumHeight(48)
+        self.generate_btn.setMinimumWidth(220)
+        self.generate_btn.setMinimumHeight(52)
         self.generate_btn.setStyleSheet("""
             QPushButton {
-                font-size: 15px;
-                font-weight: 600;
+                font-size: 16px;
+                font-weight: 700;
+                letter-spacing: 0.3px;
             }
         """)
         self.generate_btn.clicked.connect(self.generate_lab_sheet)
@@ -309,7 +409,7 @@ class MainWindow(QMainWindow):
         # Status label
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("font-size: 14px; padding: 14px;")
+        self.status_label.setStyleSheet("font-size: 15px; padding: 16px; font-weight: 500;")
         self.status_label.setWordWrap(True)
         main_layout.addWidget(self.status_label)
         
@@ -326,16 +426,33 @@ class MainWindow(QMainWindow):
         # Populate modules
         self.populate_modules()
     
+    def get_current_template_logo(self):
+        """Get logo for currently selected template."""
+        if not self.config_data or not self.config_data.get('modules'):
+            return self.config.get_logo_path()
+        
+        # Get first module's template (or we could track current module)
+        first_module = self.config_data['modules'][0]
+        template_id = first_module.get('template', 'classic')
+        
+        # Check for template-specific logo
+        template_logo_path = self.config.config_dir / f"logo_{template_id}.png"
+        if template_logo_path.exists():
+            return template_logo_path
+        
+        # Fall back to default logo
+        return self.config.get_logo_path()
+    
     def update_student_info_display(self):
         """Update the student information display."""
         if self.config_data:
             name = self.config_data.get('student_name', 'N/A')
             student_id = self.config_data.get('student_id', 'N/A')
             self.student_info_label.setText(
-                f"<b style='color: #24292e; font-size: 14px;'>Name:</b> "
-                f"<span style='color: #24292e; font-size: 14px;'>{name}</span><br>"
-                f"<b style='color: #24292e; font-size: 14px;'>Student ID:</b> "
-                f"<span style='color: #24292e; font-size: 14px;'>{student_id}</span>"
+                f"<b style='color: #24292e; font-size: 15px;'>Name:</b> "
+                f"<span style='color: #24292e; font-size: 15px;'>{name}</span><br>"
+                f"<b style='color: #24292e; font-size: 15px;'>Student ID:</b> "
+                f"<span style='color: #24292e; font-size: 15px;'>{student_id}</span>"
             )
         else:
             self.student_info_label.setText("<i style='color: #959da5;'>No information available</i>")
@@ -379,9 +496,42 @@ class MainWindow(QMainWindow):
         except KeyError:
             self.template_label.setText(f"Template: {template_id.title()}")
         
+        # Update logo for this template
+        self.update_logo_for_template(template_id)
+        
         self.change_template_btn.setEnabled(True)
         self.update_output_path_display()
         self.update_filename_preview()
+    
+    def update_logo_for_template(self, template_id):
+        """Update logo display based on template."""
+        # Check for template-specific logo
+        template_logo_path = self.config.config_dir / f"logo_{template_id}.png"
+        
+        if template_logo_path.exists():
+            logo_path = template_logo_path
+        else:
+            logo_path = self.config.get_logo_path()
+        
+        if logo_path and logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            scaled_pixmap = pixmap.scaled(88, 84, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.logo_preview.setPixmap(scaled_pixmap)
+            self.logo_status_label.setText("✓ Logo loaded")
+            self.logo_status_label.setStyleSheet("""
+                color: #28a745; 
+                font-weight: 600; 
+                font-size: 15px;
+            """)
+        else:
+            self.logo_preview.setText("No Logo")
+            self.logo_preview.setPixmap(QPixmap())
+            self.logo_status_label.setText("⚠ No logo for this template")
+            self.logo_status_label.setStyleSheet("""
+                color: #ffa500; 
+                font-weight: 600; 
+                font-size: 15px;
+            """)
     
     def change_template(self):
         """Change template for current module."""
@@ -395,7 +545,7 @@ class MainWindow(QMainWindow):
         selected = show_template_selector(current_template, self)
         
         if selected and selected != current_template:
-            # CRITICAL: Update both module reference and config_data
+            # Update module
             module_index = self.module_combo.currentIndex()
             self.config_data['modules'][module_index]['template'] = selected
             module['template'] = selected
@@ -408,6 +558,9 @@ class MainWindow(QMainWindow):
             except KeyError:
                 self.template_label.setText(f"Template: {selected.title()}")
             
+            # Update logo for new template
+            self.update_logo_for_template(selected)
+            
             # Save config
             self.config.save_config(
                 self.config_data['student_name'],
@@ -417,8 +570,6 @@ class MainWindow(QMainWindow):
                 'light',
                 self.config_data.get('default_template', 'classic')
             )
-            
-            print(f"TEMPLATE CHANGED: Module now uses {selected}")
     
     def update_output_path_display(self):
         """Update the output path display."""
@@ -487,16 +638,12 @@ class MainWindow(QMainWindow):
         manager = get_template_manager()
         template_id = module.get('template', 'classic')
         
-        print(f"GENERATION: Selected template ID: {template_id}")
-        print(f"GENERATION: Module data: {module}")
-        
         try:
             template = manager.get_template(template_id)
-            print(f"GENERATION: Got template: {template.__class__.__name__}")
         except KeyError as e:
             QMessageBox.critical(
                 self, "Error",
-                f"Template '{template_id}' not found!\n\nError: {str(e)}\n\nUsing Classic template."
+                f"Template '{template_id}' not found!\n\nUsing Classic template."
             )
             template = manager.get_template('classic')
         
@@ -515,12 +662,18 @@ class MainWindow(QMainWindow):
         
         output_dir = module.get('output_path') or self.global_output_dir
         
-        logo_path = self.config.get_logo_path()
+        # Get template-specific logo
+        template_logo_path = self.config.config_dir / f"logo_{template_id}.png"
+        if template_logo_path.exists():
+            logo_path = template_logo_path
+        else:
+            logo_path = self.config.get_logo_path()
+        
         if not logo_path or not logo_path.exists():
             reply = QMessageBox.question(
                 self,
                 "No Logo",
-                "No logo is configured. Generate without logo?",
+                f"No logo configured for '{template_id}' template. Generate without logo?",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.No:
@@ -529,7 +682,7 @@ class MainWindow(QMainWindow):
         
         self.generate_btn.setEnabled(False)
         self.status_label.setText("⏳ Generating lab sheet...")
-        self.status_label.setStyleSheet("font-size: 14px; padding: 14px; color: #5b8def; font-weight: 600;")
+        self.status_label.setStyleSheet("font-size: 15px; padding: 16px; color: #5b8def; font-weight: 600;")
         
         self.generator_thread = GeneratorThread(
             template=template,
@@ -550,7 +703,7 @@ class MainWindow(QMainWindow):
         """Called when generation is complete."""
         self.generate_btn.setEnabled(True)
         self.status_label.setText("✓ Lab sheet generated successfully!")
-        self.status_label.setStyleSheet("color: #28a745; font-weight: 600; font-size: 14px; padding: 14px;")
+        self.status_label.setStyleSheet("color: #28a745; font-weight: 600; font-size: 15px; padding: 16px;")
         
         reply = QMessageBox.information(
             self,
@@ -567,7 +720,7 @@ class MainWindow(QMainWindow):
         """Called when generation fails."""
         self.generate_btn.setEnabled(True)
         self.status_label.setText("✗ Generation failed")
-        self.status_label.setStyleSheet("color: #d73a49; font-weight: 600; font-size: 14px; padding: 14px;")
+        self.status_label.setStyleSheet("color: #d73a49; font-weight: 600; font-size: 15px; padding: 16px;")
         
         QMessageBox.critical(
             self,
@@ -621,74 +774,68 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Output Folder Changed",
-                f"Default output folder changed to:\n{folder}\n\nModules without a specific output path will use this location."
+                f"Default output folder changed to:\n{folder}"
             )
     
     def edit_configuration(self):
         """Open setup wizard to edit configuration."""
-        print("DEBUG: edit_configuration called")  # Debug
-        
         from app.ui.setup_window import SetupWindow
         
-        # CRITICAL: Pass is_first_run=False to prevent auto-close
-        print("DEBUG: Creating SetupWindow with is_first_run=False")  # Debug
-        setup_window = SetupWindow(self.config, is_first_run=False)
-        
-        print("DEBUG: Pre-filling data...")  # Debug
-        # Pre-fill data BEFORE connecting signal
-        setup_window.name_input.setText(self.config_data.get('student_name', ''))
-        setup_window.id_input.setText(self.config_data.get('student_id', ''))
-        
-        setup_window.modules = self.config_data.get('modules', []).copy()
-        setup_window.update_module_list_display()
-        
-        logo_path = self.config.get_logo_path()
-        if logo_path and logo_path.exists():
-            setup_window.logo_path = str(logo_path)
-            setup_window.logo_label.setText(logo_path.name)
-            setup_window.logo_label.setStyleSheet("color: #28a745; font-weight: 600;")
-            pixmap = QPixmap(str(logo_path))
-            scaled_pixmap = pixmap.scaled(110, 105, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            setup_window.logo_preview.setPixmap(scaled_pixmap)
-        
-        print("DEBUG: Defining callback...")  # Debug
-        # Define callback for when user saves
-        def on_setup_complete(config_data):
-            print("DEBUG: on_setup_complete callback triggered")  # Debug
-            # Reload everything
-            self.config_data = self.config.load_config()
-            self.global_output_dir = self.config_data.get('global_output_path', str(get_output_dir()))
-            self.update_student_info_display()
-            self.populate_modules()
+        try:
+            # FIXED: Don't pass is_first_run parameter
+            setup_window = SetupWindow(self.config, self)
             
-            # Update logo
-            logo_path = self.config.get_logo_path()
-            if logo_path and logo_path.exists():
-                pixmap = QPixmap(str(logo_path))
-                scaled_pixmap = pixmap.scaled(88, 84, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.logo_preview.setPixmap(scaled_pixmap)
-                self.logo_status_label.setText("✓ Logo loaded")
-                self.logo_status_label.setStyleSheet("color: #28a745; font-weight: 600; font-size: 14px;")
-        
-        # Connect signal AFTER everything is set up
-        print("DEBUG: Connecting signal...")  # Debug
-        setup_window.setup_complete.connect(on_setup_complete)
-        
-        # Show the window
-        print("DEBUG: Showing window...")  # Debug
-        setup_window.show()
-        
-        # CRITICAL: Keep a reference to prevent garbage collection
-        self._setup_window = setup_window
-        
-        print("DEBUG: edit_configuration complete, window should be visible")  # Debug
+            # Load current data
+            setup_window.name_input.setText(self.config_data.get('student_name', ''))
+            setup_window.id_input.setText(self.config_data.get('student_id', ''))
+            
+            # Load modules with all required fields
+            modules = []
+            for module in self.config_data.get('modules', []):
+                complete_module = {
+                    'name': module.get('name', ''),
+                    'code': module.get('code', ''),
+                    'sheet_type': module.get('sheet_type', 'Practical'),
+                    'custom_sheet_type': module.get('custom_sheet_type'),
+                    'output_path': module.get('output_path'),
+                    'use_zero_padding': module.get('use_zero_padding', True),
+                    'template': module.get('template', 'classic')
+                }
+                modules.append(complete_module)
+            
+            setup_window.modules = modules
+            setup_window.update_module_list()
+            
+            # Load logos for all templates
+            setup_window.load_logos_from_config(self.config)
+            
+            # Connect callback
+            def on_complete(config_data):
+                self.config_data = self.config.load_config()
+                self.global_output_dir = self.config_data.get('global_output_path', str(get_output_dir()))
+                self.update_student_info_display()
+                self.populate_modules()
+                
+                # Update logo for current template
+                if self.config_data and self.config_data.get('modules'):
+                    first_module = self.config_data['modules'][0]
+                    template_id = first_module.get('template', 'classic')
+                    self.update_logo_for_template(template_id)
+            
+            setup_window.setup_complete.connect(on_complete)
+            setup_window.show()
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Failed to open editor:\n\n{str(e)}")
     
     def reset_configuration(self):
         """Reset all configuration."""
         reply = QMessageBox.warning(
             self,
             "Reset Configuration",
-            "Are you sure you want to reset all configuration?\n\nThis will delete your student info, modules, and logo.",
+            "Are you sure you want to reset all configuration?\n\nThis will delete your student info, modules, and logos.",
             QMessageBox.Yes | QMessageBox.No
         )
         
@@ -697,7 +844,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "Configuration Reset",
-                "Configuration has been reset. The application will now close.\n\nPlease restart to set up again."
+                "Configuration has been reset. Please restart the application."
             )
             self.close()
     
@@ -706,14 +853,14 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "About Lab Sheet Generator",
-            "<h3>Lab Sheet Generator V2.0.0</h3>"
-            "<p style='font-size: 13px;'>A modern desktop application for university students to generate "
+            "<h3 style='font-weight: 700;'>Lab Sheet Generator V2.0.0</h3>"
+            "<p style='font-size: 14px;'>A modern desktop application for university students to generate "
             "lab sheet templates automatically.</p>"
-            "<p style='font-size: 13px;'><b>New in V2.0:</b></p>"
-            "<ul style='font-size: 13px;'>"
+            "<p style='font-size: 14px;'><b>Features:</b></p>"
+            "<ul style='font-size: 14px;'>"
             "<li>🎨 Clean, modern UI design</li>"
-            "<li>📄 Multiple document templates with previews</li>"
+            "<li>📄 Multiple document templates</li>"
+            "<li>🖼️ Template-specific logos</li>"
             "<li>✨ Enhanced user experience</li>"
-            "<li>🔧 Improved configuration system</li>"
             "</ul>"
         )
