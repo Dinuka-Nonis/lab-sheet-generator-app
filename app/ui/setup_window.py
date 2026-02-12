@@ -248,6 +248,19 @@ class SetupWindow(QWidget):
         self.name_input.setMinimumHeight(44)
         self.name_input.setStyleSheet("font-size: 15px;")
         student_form.addRow("<b style='font-size: 15px;'>Full Name:</b>", self.name_input)
+
+        # Email input - NEW for V3.0
+        self.email_input = QLineEdit()
+        self.email_input.setPlaceholderText("e.g., IT23614130@my.sliit.lk")
+        self.email_input.setMinimumHeight(44)
+        self.email_input.setStyleSheet("font-size: 15px;")
+        student_form.addRow("<b style='font-size: 15px;'>University Email:</b>", self.email_input)
+
+        # Email help text
+        email_help = QLabel("📧 Notifications and confirmations will be sent to this email")
+        email_help.setStyleSheet("font-size: 13px; color: #6a737d; padding-left: 4px;")
+        email_help.setWordWrap(True)
+        student_form.addRow("", email_help)
         
         self.id_input = QLineEdit()
         self.id_input.setMinimumHeight(44)
@@ -491,6 +504,7 @@ class SetupWindow(QWidget):
         """Save configuration with template-specific logos."""
         name = self.name_input.text().strip()
         student_id = self.id_input.text().strip()
+        user_email = self.email_input.text().strip()  # NEW
         
         is_valid, error = validate_student_name(name)
         if not is_valid:
@@ -502,30 +516,35 @@ class SetupWindow(QWidget):
             QMessageBox.warning(self, "Invalid Input", f"ID: {error}")
             return
         
-        # Save config
+        # Validate email (basic validation) - NEW
+        if user_email and '@' not in user_email:
+            QMessageBox.warning(
+                self, 
+                "Invalid Email", 
+                "Please enter a valid email address (e.g., name@university.edu)"
+            )
+            return
+        
+        # Save config with email
         self.config.save_config(
             name, student_id, self.modules,
-            theme='light', default_template='classic'
+            theme='light', default_template='classic',
+            user_email=user_email  # NEW parameter
         )
+
+    def load_existing_config(self):
+        """Load existing configuration data."""
+        config_data = self.config.load_config()
         
-        # Save template-specific logos
-        for template_id, logo_path in self.template_logos.items():
-            template_logo_file = self.config.config_dir / f"logo_{template_id}.png"
+        if config_data:
+            # Load student info
+            self.name_input.setText(config_data.get('student_name', ''))
+            self.id_input.setText(config_data.get('student_id', ''))
+            self.email_input.setText(config_data.get('user_email', ''))  # NEW
             
-            import shutil
-            shutil.copy2(logo_path, template_logo_file)
-        
-        QMessageBox.information(
-            self, "Success",
-            "Configuration and logos updated successfully!"
-        )
-        
-        # Emit signal
-        self.setup_complete.emit({
-            'student_name': name,
-            'student_id': student_id,
-            'modules': self.modules,
-            'logo_path': self.config.get_logo_path()
-        })
-        
-        self.close()
+            # Load modules
+            self.modules = config_data.get('modules', [])
+            self.update_module_list()
+            
+            # Load logos
+            self.load_logos_from_config(self.config)

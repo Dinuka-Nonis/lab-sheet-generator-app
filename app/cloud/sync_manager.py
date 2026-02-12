@@ -207,26 +207,30 @@ class SyncManager:
                 logger.error("Cannot sync logo: not authenticated")
                 return False
             
+            if not logo_path or not isinstance(logo_path, Path):
+                logger.warning(f"Invalid logo path: {logo_path}")
+                return False
+                
             if not logo_path.exists():
-                logger.error(f"Logo file not found: {logo_path}")
+                logger.warning(f"Logo file not found: {logo_path}")
                 return False
             
-            # Upload logo
-            logger.info("Syncing logo to OneDrive...")
+            # Upload logo with original filename
+            logger.info(f"Syncing logo to OneDrive: {logo_path.name} ({logo_path.stat().st_size} bytes)")
             result = self.onedrive.upload_file(
                 logo_path,
                 f"LabSheets/.config/{logo_path.name}"
             )
             
             if result:
-                logger.info("Logo synced to OneDrive successfully")
+                logger.info(f"Logo synced successfully: {logo_path.name}")
                 return True
             else:
-                logger.error("Failed to sync logo to OneDrive")
+                logger.error(f"Failed to sync logo: {logo_path.name}")
                 return False
                 
         except Exception as e:
-            logger.error(f"Error syncing logo: {e}")
+            logger.error(f"Error syncing logo: {e}", exc_info=True)
             return False
     
     def download_logo(self, logo_name: str = "SLIIT.png") -> bool:

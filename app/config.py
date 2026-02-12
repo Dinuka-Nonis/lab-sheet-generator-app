@@ -40,7 +40,7 @@ class Config:
         return str(get_output_dir())
     
     def save_config(self, student_name, student_id, modules, global_output_path=None,
-                    theme='light', default_template='classic'):
+                theme='light', default_template='classic', user_email=None):
         """
         Save user configuration to file.
         
@@ -53,14 +53,15 @@ class Config:
             default_template: Default template ID to use
         """
         config_data = {
-            'version': '2.0.0',  # Config version for future migrations
+            'version': '3.0.0',  # Updated for V3.0
             'student_name': student_name,
             'student_id': student_id,
+            'user_email': user_email,  # NEW: University email for notifications
             'modules': modules,
             'global_output_path': global_output_path or self._get_default_output_dir(),
             'theme': theme,
             'default_template': default_template
-        }
+}
         
         with open(self.config_file, 'w') as f:
             json.dump(config_data, f, indent=4)
@@ -91,6 +92,10 @@ class Config:
             
             if 'default_template' not in config:
                 config['default_template'] = 'classic'
+            
+            # Migrate older configs to include user_email
+            if 'user_email' not in config:
+                config['user_email'] = None
             
             # Migrate modules to new format
             for module in config.get('modules', []):
@@ -184,3 +189,13 @@ class Config:
             self.config_file.unlink()
         if self.logo_file.exists():
             self.logo_file.unlink()
+
+    def update_user_email(self, email):
+        """Update user email in existing config."""
+        config_data = self.load_config()
+        if config_data:
+            config_data['user_email'] = email
+            with open(self.config_file, 'w') as f:
+                json.dump(config_data, f, indent=4)
+            return True
+        return False

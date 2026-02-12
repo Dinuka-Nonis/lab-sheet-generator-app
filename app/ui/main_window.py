@@ -484,17 +484,24 @@ class MainWindow(QMainWindow):
     
     def update_student_info_display(self):
         """Update the student information display."""
-        if self.config_data:
-            name = self.config_data.get('student_name', 'N/A')
-            student_id = self.config_data.get('student_id', 'N/A')
-            self.student_info_label.setText(
-                f"<b style='color: #24292e; font-size: 15px;'>Name:</b> "
-                f"<span style='color: #24292e; font-size: 15px;'>{name}</span><br>"
-                f"<b style='color: #24292e; font-size: 15px;'>Student ID:</b> "
-                f"<span style='color: #24292e; font-size: 15px;'>{student_id}</span>"
-            )
-        else:
-            self.student_info_label.setText("<i style='color: #959da5;'>No information available</i>")
+        name = self.config_data.get('student_name', 'Not set')
+        student_id = self.config_data.get('student_id', 'Not set')
+        user_email = self.config_data.get('user_email', 'Not set')
+        
+        # Count modules
+        modules = self.config_data.get('modules', [])
+        module_count = len(modules)
+        
+        info_text = f"""
+        <div style='line-height: 1.8;'>
+            <p style='margin: 4px 0;'><b>Name:</b> {name}</p>
+            <p style='margin: 4px 0;'><b>Student ID:</b> {student_id}</p>
+            <p style='margin: 4px 0;'><b>Email:</b> {user_email}</p>
+            <p style='margin: 4px 0;'><b>Modules:</b> {module_count} configured</p>
+        </div>
+        """
+        
+        self.student_info_label.setText(info_text)
     
     def populate_modules(self):
         """Populate the module combo box."""
@@ -823,6 +830,8 @@ class MainWindow(QMainWindow):
         try:
             # FIXED: Don't pass is_first_run parameter
             setup_window = SetupWindow(self.config, self)
+            setup_window.load_existing_config()  # ADD THIS LINE
+
             
             # Load current data
             setup_window.name_input.setText(self.config_data.get('student_name', ''))
@@ -1153,7 +1162,12 @@ class MainWindow(QMainWindow):
                 color: #28a745;
             """)
             
-            self.onedrive_user_info.setText(f"👤 {display_name}\n📧 {email}")
+            # Show both accounts clearly
+            user_email = self.config_data.get('user_email', 'Not configured')
+            self.onedrive_user_info.setText(
+                f"🔐 Storage: {email}\n"
+                f"📧 Notifications: {user_email}"
+            )            
             self.onedrive_user_info.setVisible(True)
             
             self.onedrive_connect_btn.setText("Disconnect")
@@ -1227,17 +1241,45 @@ class MainWindow(QMainWindow):
         self.sync_now_btn.setText("Syncing...")
         QApplication.processEvents()
         
-        success = self.sync_manager.sync_to_cloud()
+        # Sync config
+        config_success = self.sync_manager.sync_to_cloud()
         
-        # Also sync logo
+        # Try to sync logo from multiple locations
+        logo_synced = False
+        
+        # 1. Try default logo location
         logo_path = self.config.get_logo_path()
-        if logo_path:
-            self.sync_manager.sync_logo(logo_path)
+        if logo_path and logo_path.exists():
+            print(f"Found logo at: {logo_path}")
+            logo_synced = self.sync_manager.sync_logo(logo_path)
+        
+        # 2. Try template-specific logo
+        if not logo_synced:
+            for template_id in ['classic', 'sliit']:
+                template_logo = self.config.config_dir / f"logo_{template_id}.png"
+                if template_logo.exists():
+                    print(f"Found template logo at: {template_logo}")
+                    logo_synced = self.sync_manager.sync_logo(template_logo)
+                    break
+        
+        # 3. Try any PNG in config dir
+        if not logo_synced:
+            for png_file in self.config.config_dir.glob("*.png"):
+                print(f"Found PNG at: {png_file}")
+                logo_synced = self.sync_manager.sync_logo(png_file)
+                break
         
         self.sync_now_btn.setEnabled(True)
         self.sync_now_btn.setText("🔄 Sync Configuration Now")
         
-        if success:
+        if config_success:
+            # Build status message
+            status_parts = ["✓ Configuration synced!"]
+            if logo_synced:
+                status_parts.append("✓ Logo synced!")
+            else:
+                status_parts.append("⚠ No logo found")
+            
             # Update last sync info
             sync_info = self.sync_manager.get_last_sync_info()
             if sync_info:
@@ -1247,19 +1289,12 @@ class MainWindow(QMainWindow):
                 self.last_sync_label.setText(f"Last synced: {time_str}")
                 self.last_sync_label.setVisible(True)
             
-            self.status_label.setText("✓ Synced to OneDrive successfully!")
+            self.status_label.setText(" | ".join(status_parts))
             self.status_label.setStyleSheet("color: #28a745; font-weight: 600; font-size: 15px; padding: 16px;")
         else:
-            self.status_label.setText("✗ Sync failed")
+            self.status_label.setText("✗ Sync failed - check internet connection")
             self.status_label.setStyleSheet("color: #d73a49; font-weight: 600; font-size: 15px; padding: 16px;")
-            
-            QMessageBox.warning(
-                self,
-                "Sync Failed",
-                "Failed to sync to OneDrive.\n"
-                "Please check your internet connection."
-            )
-    
+
     def open_setup_guide(self):
         """Open Azure setup guide."""
         import webbrowser
