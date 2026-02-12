@@ -9,6 +9,8 @@ from app.core.template_manager import get_template_manager
 from app.utils.paths import get_output_dir
 import os
 from pathlib import Path
+from app.scheduler.schedule_manager import ScheduleManager
+from app.ui.schedule_window import ScheduleWindow
 
 # OneDrive Integration (V3.0)
 try:
