@@ -46,3 +46,15 @@ app/ui/assets/logo.png
 
 # Config
 config.json
+
+# Environment variables
+.env
+.env.local
+
+# Token cache (also sensitive)
+**/.token_cache.bin
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
