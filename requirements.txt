@@ -1,7 +1,38 @@
+# Lab Sheet Generator V3.0.0 Requirements
+
+# UI Framework
 PySide6>=6.5.0
+
+# Document generation
 python-docx>=0.8.11
+
+# Image processing
 Pillow>=9.0.0
+
+# Font checking for templates
+matplotlib>=3.7.0
+
+# Build tools
 pyinstaller>=6.0.0
 
-# Environment variable management
-python-dotenv>=1.0.0
+# ============================================
+# V3.0 New Dependencies - OneDrive Integration
+# ============================================
+
+# Microsoft Authentication Library (OAuth 2.0)
+msal>=1.24.0
+
+# HTTP requests for Microsoft Graph API
+requests>=2.31.0
+
+# Token encryption and secure storage
+cryptography>=41.0.0
+
+# Standard library (included with Python, listed for reference)
+# json
+# os
+# pathlib
+# abc
+# shutil
+# datetime
+# uuid
