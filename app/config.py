@@ -51,6 +51,7 @@ class Config:
             global_output_path: Default output path (optional)
             theme: UI theme preference ('light' or 'dark')
             default_template: Default template ID to use
+            user_email: User's email for notifications
         """
         config_data = {
             'version': '3.0.0',  # Updated for V3.0
@@ -60,8 +61,10 @@ class Config:
             'modules': modules,
             'global_output_path': global_output_path or self._get_default_output_dir(),
             'theme': theme,
-            'default_template': default_template
-}
+            'default_template': default_template,
+            'cloud_enabled': getattr(self, 'cloud_enabled', False),
+            'cloud_url': getattr(self, 'cloud_url', '')
+        }
         
         with open(self.config_file, 'w') as f:
             json.dump(config_data, f, indent=4)
@@ -98,6 +101,12 @@ class Config:
                 config['user_email'] = None
             
             # Migrate modules to new format
+            
+            # Load cloud settings
+            self.cloud_enabled = config.get('cloud_enabled', False)
+            self.cloud_url = config.get('cloud_url', '')
+            
+            return config
             for module in config.get('modules', []):
                 # Add sheet_type if missing
                 if 'sheet_type' not in module:
@@ -189,6 +198,24 @@ class Config:
             self.config_file.unlink()
         if self.logo_file.exists():
             self.logo_file.unlink()
+    
+    def save_cloud_settings(self, enabled: bool, url: str):
+        """
+        Save cloud integration settings.
+        
+        Args:
+            enabled: Whether cloud integration is enabled
+            url: Cloud service URL
+        """
+        config = self.load_config() or {}
+        config['cloud_enabled'] = enabled
+        config['cloud_url'] = url
+        
+        self.cloud_enabled = enabled
+        self.cloud_url = url
+        
+        with open(self.config_file, 'w') as f:
+            json.dump(config, f, indent=4)
 
     def update_user_email(self, email):
         """Update user email in existing config."""
