@@ -28,6 +28,17 @@ class CloudAPIClient:
         self.api_key_file = config_dir / ".cloud_api_key"
         self.api_key = self._load_api_key()
         self.user_info = None
+
+        # If we already have a saved API key, silently fetch the profile
+        # so the menu shows the real name instead of "User"
+        if self.api_key:
+            try:
+                resp = self._request('GET', '/api/user/profile')
+                # Profile returns {'success': True, 'user': {...}}
+                # Store just the user dict for easy access
+                self.user_info = resp.get('user', resp)
+            except Exception:
+                pass  # Offline or error — stay silent, still considered logged in
     
     def _load_api_key(self) -> Optional[str]:
         """Load API key from disk."""

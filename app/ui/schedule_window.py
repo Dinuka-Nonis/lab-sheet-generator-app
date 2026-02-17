@@ -119,7 +119,7 @@ class ScheduleDialog(QDialog):
         self.zero_padding_check.setStyleSheet("font-size: 14px;")
         options_layout.addWidget(self.zero_padding_check)
         
-        self.upload_check = QCheckBox("Upload to OneDrive after generation")
+        self.upload_check = QCheckBox("Save a copy to local output folder after generation")
         self.upload_check.setChecked(True)
         self.upload_check.setStyleSheet("font-size: 14px;")
         options_layout.addWidget(self.upload_check)
@@ -242,8 +242,8 @@ class ScheduleWindow(QWidget):
         
         # Info box
         info_box = QLabel(
-            "💡 Schedules will automatically generate lab sheets at the specified time. "
-            "Generated sheets will be uploaded to your OneDrive for easy access from lab computers."
+            "Schedules automatically send you a notification email before each lab. "
+            "Click 'Generate Sheet' in the email and the .docx file will be sent to your university email."
         )
         info_box.setWordWrap(True)
         info_box.setStyleSheet("""
@@ -291,6 +291,7 @@ class ScheduleWindow(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.table.setMinimumWidth(750)
         
         self.table.verticalHeader().setVisible(False)
         
@@ -321,24 +322,16 @@ class ScheduleWindow(QWidget):
         
         button_layout.addStretch()
         
-        sync_btn = QPushButton("🔄 Sync to OneDrive")
-        sync_btn.setMinimumHeight(44)
-        sync_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0366d6;
-                color: white;
-                font-size: 14px;
-                font-weight: 600;
-                border: none;
-                border-radius: 6px;
-                padding: 10px 20px;
-            }
-            QPushButton:hover {
-                background-color: #0256b8;
-            }
-        """)
-        sync_btn.clicked.connect(self.sync_schedules)
-        button_layout.addWidget(sync_btn)
+        # Info label bottom
+        how_it_works = QLabel(
+            "Test Email sends a notification immediately — "
+            "click Generate in the email to get the .docx file sent to your university email."
+        )
+        how_it_works.setWordWrap(True)
+        how_it_works.setStyleSheet(
+            "color:#586069; font-size:12px; padding: 4px 0;"
+        )
+        layout.addWidget(how_it_works)
         
         close_btn = QPushButton("Close")
         close_btn.setMinimumHeight(44)
@@ -409,32 +402,45 @@ class ScheduleWindow(QWidget):
             actions_layout = QHBoxLayout()
             actions_layout.setContentsMargins(4, 4, 4, 4)
             actions_layout.setSpacing(4)
-            
+
+            btn_style_edit   = "QPushButton{background:#0366d6;color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;padding:4px 8px;}QPushButton:hover{background:#0256c2;}"
+            btn_style_pause  = "QPushButton{background:#856404;color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;padding:4px 8px;}QPushButton:hover{background:#6d5202;}"
+            btn_style_resume = "QPushButton{background:#28a745;color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;padding:4px 8px;}QPushButton:hover{background:#218838;}"
+            btn_style_delete = "QPushButton{background:#dc3545;color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;padding:4px 8px;}QPushButton:hover{background:#c82333;}"
+            btn_style_test   = "QPushButton{background:#6f42c1;color:white;border:none;border-radius:4px;font-size:12px;font-weight:600;padding:4px 8px;}QPushButton:hover{background:#5a32a3;}"
+
             # Edit button
-            edit_btn = QPushButton("✏️")
-            edit_btn.setToolTip("Edit schedule")
-            edit_btn.setMaximumWidth(40)
+            edit_btn = QPushButton("Edit")
+            edit_btn.setToolTip("Edit this schedule")
+            edit_btn.setStyleSheet(btn_style_edit)
             edit_btn.clicked.connect(lambda checked, s=schedule: self.edit_schedule(s))
             actions_layout.addWidget(edit_btn)
-            
+
             # Pause/Resume button
             if schedule.is_active():
-                pause_btn = QPushButton("⏸️")
-                pause_btn.setToolTip("Pause schedule")
-                pause_btn.setMaximumWidth(40)
+                pause_btn = QPushButton("Pause")
+                pause_btn.setToolTip("Pause this schedule")
+                pause_btn.setStyleSheet(btn_style_pause)
                 pause_btn.clicked.connect(lambda checked, sid=schedule.id: self.pause_schedule(sid))
                 actions_layout.addWidget(pause_btn)
             else:
-                resume_btn = QPushButton("▶️")
-                resume_btn.setToolTip("Resume schedule")
-                resume_btn.setMaximumWidth(40)
+                resume_btn = QPushButton("Resume")
+                resume_btn.setToolTip("Resume this schedule")
+                resume_btn.setStyleSheet(btn_style_resume)
                 resume_btn.clicked.connect(lambda checked, sid=schedule.id: self.resume_schedule(sid))
                 actions_layout.addWidget(resume_btn)
-            
+
+            # Test Email button — sends a test notification right now
+            test_btn = QPushButton("Test Email")
+            test_btn.setToolTip("Send a test email notification for this schedule right now")
+            test_btn.setStyleSheet(btn_style_test)
+            test_btn.clicked.connect(lambda checked, s=schedule: self.test_email(s))
+            actions_layout.addWidget(test_btn)
+
             # Delete button
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setToolTip("Delete schedule")
-            delete_btn.setMaximumWidth(40)
+            delete_btn = QPushButton("Delete")
+            delete_btn.setToolTip("Delete this schedule")
+            delete_btn.setStyleSheet(btn_style_delete)
             delete_btn.clicked.connect(lambda checked, sid=schedule.id: self.delete_schedule(sid))
             actions_layout.addWidget(delete_btn)
             
@@ -537,20 +543,81 @@ class ScheduleWindow(QWidget):
         self.load_schedules()
         self.schedules_updated.emit()
     
-    def sync_schedules(self):
-        """Sync schedules to OneDrive."""
-        success = self.schedule_manager.sync_to_cloud()
-        
-        if success:
+    def test_email(self, schedule):
+        """Send a test notification email for this schedule right now."""
+        # Use correct attribute names from local Schedule model
+        day_name   = schedule.get_day_name()
+        lab_time   = schedule.get_formatted_time()
+        module     = schedule.module_name
+
+        reply = QMessageBox.question(
+            self,
+            "Send Test Email",
+            f"Send a test notification email for:\n\n"
+            f"  Module:   {module}\n"
+            f"  Lab time: {day_name} at {lab_time}\n\n"
+            f"A notification email will be sent to your registered university email.\n"
+            f"Click 'Generate Sheet' in the email to receive the .docx file.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        # Get api_client from parent main window
+        api_client = None
+        parent = self.parent()
+        while parent is not None:
+            if hasattr(parent, 'api_client'):
+                api_client = parent.api_client
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+
+        if not api_client or not api_client.is_authenticated():
             QMessageBox.information(
-                self,
-                "Sync Successful",
-                "Schedules synced to OneDrive successfully!"
+                self, "Not Connected",
+                "You need to be logged into the cloud service to send test emails.\n\n"
+                "Go to Cloud → Login to Cloud first."
             )
-        else:
-            QMessageBox.warning(
-                self,
-                "Sync Failed",
-                "Failed to sync schedules to OneDrive.\n"
-                "Make sure you're connected to OneDrive."
-            )
+            return
+
+        try:
+            result = api_client._request('POST', '/api/test-email', {})
+            if result.get('success'):
+                QMessageBox.information(
+                    self, "Test Email Sent!",
+                    f"Email sent to your university email!\n\n"
+                    f"Check your inbox and click 'Generate Sheet'\n"
+                    f"to receive the .docx file as an attachment."
+                )
+            else:
+                QMessageBox.warning(self, "Failed", result.get('error', 'Unknown error'))
+
+        except Exception as e:
+            err = str(e)
+            if '404' in err:
+                QMessageBox.warning(
+                    self, "Cloud Not Updated",
+                    "The cloud service needs to be updated with the new app.py first.\n\n"
+                    "Upload the new app.py to PythonAnywhere and click Reload."
+                )
+            elif '503' in err:
+                QMessageBox.warning(
+                    self, "Email Not Configured",
+                    "Gmail is not configured on the server yet.\n\n"
+                    "In PythonAnywhere, edit the WSGI file and set:\n"
+                    "  GMAIL_USER = your Gmail address\n"
+                    "  GMAIL_APP_PASSWORD = your app password\n\n"
+                    "Then click Reload on the Web tab."
+                )
+            else:
+                QMessageBox.critical(self, "Error", f"Could not send test email:\n{err[:200]}")
+
+    def sync_schedules(self):
+        """Sync schedules (legacy - kept for compatibility)."""
+        QMessageBox.information(
+            self,
+            "Schedules are Cloud-Synced",
+            "Your schedules are already managed directly in the cloud service.\n\n"
+            "The cloud scheduler runs every 15 minutes and will automatically\n"
+            "send email notifications before your scheduled lab times."
+        )

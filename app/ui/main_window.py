@@ -387,15 +387,24 @@ class MainWindow(QMainWindow):
         """Update student information display."""
         name = self.config_data.get('student_name', 'Not set')
         student_id = self.config_data.get('student_id', 'Not set')
-        user_email = self.config_data.get('user_email', 'Not set')
         modules = self.config_data.get('modules', [])
         active_schedules = len(self.schedule_manager.get_active_schedules())
-        
+
+        # Use cloud user_info for email/name if available (more up to date)
+        if self.api_client.user_info:
+            cloud = self.api_client.user_info
+            # cloud user dict has: name, student_id, email, modules_count, schedules_count
+            display_name  = cloud.get('name', name)
+            display_email = cloud.get('email', self.config_data.get('user_email', 'Not set'))
+        else:
+            display_name  = name
+            display_email = self.config_data.get('user_email') or 'Not set'
+
         self.student_info_label.setText(f"""
             <div style='line-height: 1.8;'>
-                <p style='margin: 4px 0;'><b>Name:</b> {name}</p>
+                <p style='margin: 4px 0;'><b>Name:</b> {display_name}</p>
                 <p style='margin: 4px 0;'><b>Student ID:</b> {student_id}</p>
-                <p style='margin: 4px 0;'><b>Email:</b> {user_email}</p>
+                <p style='margin: 4px 0;'><b>Email:</b> {display_email}</p>
                 <p style='margin: 4px 0;'><b>Modules:</b> {len(modules)} configured</p>
                 <p style='margin: 4px 0;'><b>Schedules:</b> {active_schedules} active</p>
             </div>
