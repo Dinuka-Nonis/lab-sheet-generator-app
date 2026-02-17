@@ -132,7 +132,10 @@ class MainWindow(QMainWindow):
         # Login/Logout
         if self.api_client.is_authenticated():
             user_name = self.api_client.user_info.get('name', 'User') if self.api_client.user_info else 'User'
-            cloud_menu.addAction(self.create_action(f"👤 {user_name}", lambda: None)).setEnabled(False)
+            # Fix: store action first, then disable — addAction returns None on some Qt versions
+            user_action = self.create_action(f"👤 {user_name}", lambda: None)
+            cloud_menu.addAction(user_action)
+            user_action.setEnabled(False)
             cloud_menu.addSeparator()
             cloud_menu.addAction(self.create_action("Logout", self.handle_cloud_logout))
         else:
@@ -712,18 +715,7 @@ class MainWindow(QMainWindow):
     # ==========================================
     
     def show_cloud_login(self):
-        """Show cloud login dialog — redirect to settings if URL not configured."""
-        url = self.api_client.base_url
-        if 'localhost' in url or '127.0.0.1' in url:
-            QMessageBox.information(
-                self,
-                "Set Cloud URL First",
-                "Before logging in, you need to tell the app where your cloud service is.\n\n"
-                "Opening Cloud Settings now — enter your PythonAnywhere URL then click Save."
-            )
-            self.show_cloud_settings()
-            return
-
+        """Show cloud login dialog."""
         dialog = CloudAuthDialog(self.api_client, self)
         dialog.authenticated.connect(self.on_cloud_authenticated)
         dialog.exec()
