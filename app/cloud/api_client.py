@@ -23,7 +23,7 @@ class CloudAPIClient:
             base_url: Cloud service URL (e.g., "https://your-app.onrender.com")
             config_dir: Directory for storing API key
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip('/') if base_url else 'http://localhost:5000'
         self.config_dir = config_dir
         self.api_key_file = config_dir / ".cloud_api_key"
         self.api_key = self._load_api_key()
@@ -46,42 +46,59 @@ class CloudAPIClient:
         except Exception as e:
             logger.error(f"Error saving API key: {e}")
     
+    def _normalize_url(self, url: str) -> str:
+        """Auto-upgrade http to https for PythonAnywhere."""
+        if url.startswith('http://') and 'pythonanywhere.com' in url:
+            url = 'https://' + url[7:]
+            logger.info(f"Auto-upgraded to HTTPS: {url}")
+        return url
+
     def _request(self, method: str, endpoint: str, data: Dict = None, timeout: int = 30) -> Dict:
-        """
-        Make API request.
+        """Make API request with automatic http→https handling."""
+        url = self._normalize_url(f"{self.base_url}{endpoint}")
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'LabSheetGenerator/3.0'
+        }
         
-        Args:
-            method: HTTP method (GET, POST, PUT, DELETE)
-            endpoint: API endpoint (e.g., "/api/login")
-            data: Request data
-            timeout: Request timeout in seconds
-            
-        Returns:
-            Response JSON
-            
-        Raises:
-            Exception: If request fails
-        """
-        url = f"{self.base_url}{endpoint}"
-        headers = {'Content-Type': 'application/json'}
-        
-        # Add API key if available
         if self.api_key:
             headers['Authorization'] = f'Bearer {self.api_key}'
         
-        logger.info(f"{method} {endpoint}")
+        logger.info(f"{method} {url}")
         
-        response = requests.request(
-            method=method,
-            url=url,
-            headers=headers,
-            json=data,
-            timeout=timeout
-        )
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                json=data,
+                timeout=timeout,
+                allow_redirects=True
+            )
+        except requests.exceptions.SSLError:
+            # If HTTPS fails, try HTTP
+            http_url = url.replace('https://', 'http://')
+            logger.warning(f"HTTPS failed, trying HTTP: {http_url}")
+            response = requests.request(
+                method=method,
+                url=http_url,
+                headers=headers,
+                json=data,
+                timeout=timeout,
+                allow_redirects=True
+            )
+        
+        if response.status_code == 403:
+            raise Exception(
+                f"403 Forbidden — PythonAnywhere blocked the request.\n"
+                f"Make sure your cloud service is reloaded on PythonAnywhere."
+            )
         
         response.raise_for_status()
         return response.json()
-    
+
+
     # ========================================
     # Authentication
     # ========================================
@@ -324,14 +341,15 @@ class CloudAPIClient:
         }
     
     def test_connection(self) -> bool:
-        """
-        Test connection to cloud service.
-        
-        Returns:
-            bool: True if connection successful
-        """
+        """Test connection to cloud service."""
         try:
-            response = requests.get(f"{self.base_url}/", timeout=10)
+            url = self._normalize_url(f"{self.base_url}/")
+            response = requests.get(
+                url,
+                timeout=25,
+                allow_redirects=True,
+                headers={'User-Agent': 'LabSheetGenerator/3.0'}
+            )
             return response.status_code == 200
         except Exception as e:
             logger.error(f"Connection test failed: {e}")
