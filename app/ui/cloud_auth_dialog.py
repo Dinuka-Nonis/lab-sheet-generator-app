@@ -48,7 +48,44 @@ class CloudAuthDialog(QDialog):
         subtitle.setAlignment(Qt.AlignCenter)
         subtitle.setStyleSheet("color: #586069; font-size: 13px;")
         layout.addWidget(subtitle)
-        
+
+        # ── URL warning banner ────────────────────────────────────────────────
+        url = self.api_client.base_url
+        is_localhost = 'localhost' in url or '127.0.0.1' in url
+
+        if is_localhost:
+            warn = QLabel(
+                f"⚠️  Cloud URL is set to <b>{url}</b><br>"
+                "You need to set your PythonAnywhere URL first.<br>"
+                "Go to  <b>Cloud → Cloud Settings</b>  and enter:<br>"
+                "<b>http://DinukaNonis.pythonanywhere.com</b>"
+            )
+            warn.setWordWrap(True)
+            warn.setTextFormat(Qt.RichText)
+            warn.setStyleSheet("""
+                background: #fff3cd;
+                border: 1px solid #ffc107;
+                border-radius: 6px;
+                padding: 12px;
+                font-size: 13px;
+                color: #856404;
+            """)
+            layout.addWidget(warn)
+        else:
+            # Show current URL so user knows where they're connecting
+            url_label = QLabel(f"🌐  Connecting to: <b>{url}</b>")
+            url_label.setTextFormat(Qt.RichText)
+            url_label.setStyleSheet("""
+                background: #d4edda;
+                border: 1px solid #28a745;
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 13px;
+                color: #155724;
+            """)
+            layout.addWidget(url_label)
+        # ─────────────────────────────────────────────────────────────────────
+
         # Tabs for Login/Register
         tabs = QTabWidget()
         tabs.setStyleSheet("""
@@ -194,8 +231,28 @@ class CloudAuthDialog(QDialog):
         
         self.setLayout(layout)
     
+    def _check_url(self):
+        """Return True if URL is valid (not localhost). Show warning if not."""
+        url = self.api_client.base_url
+        if 'localhost' in url or '127.0.0.1' in url:
+            QMessageBox.warning(
+                self,
+                "Cloud URL Not Set",
+                "You are still pointing to localhost!\n\n"
+                "Close this window and go to:\n"
+                "Cloud → Cloud Settings\n\n"
+                "Enter your PythonAnywhere URL:\n"
+                "http://DinukaNonis.pythonanywhere.com\n\n"
+                "Then click Save, and try Login again."
+            )
+            return False
+        return True
+
     def handle_login(self):
         """Handle login button click."""
+        if not self._check_url():
+            return
+
         student_id = self.login_student_id.text().strip()
         password = self.login_password.text()
         
@@ -236,6 +293,9 @@ class CloudAuthDialog(QDialog):
     
     def handle_register(self):
         """Handle register button click."""
+        if not self._check_url():
+            return
+
         name = self.register_name.text().strip()
         student_id = self.register_student_id.text().strip()
         email = self.register_email.text().strip()

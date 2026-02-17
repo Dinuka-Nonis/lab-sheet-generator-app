@@ -1,6 +1,6 @@
 """
 Main Window for Lab Sheet Generator V3.0
-Clean, refactored version with separated concerns
+Clean, refactored version with separated concerns and cloud integration
 """
 
 from PySide6.QtWidgets import (
@@ -15,20 +15,14 @@ from app.utils.paths import get_output_dir
 import os
 from pathlib import Path
 
-# Phase 2: Schedule Management
+# Schedule Management
 from app.scheduler.schedule_manager import ScheduleManager
 from app.ui.schedule_window import ScheduleWindow
 
-# OneDrive Integration
-from app.ui.onedrive_widget import OneDriveWidget, OneDriveSetupWidget
-
-try:
-    from app.cloud.onedrive_client import OneDriveClient
-    from app.cloud.sync_manager import SyncManager
-    from app.cloud.azure_config import get_client_id
-    ONEDRIVE_AVAILABLE = True
-except ImportError:
-    ONEDRIVE_AVAILABLE = False
+# Cloud Integration
+from app.cloud.api_client import CloudAPIClient
+from app.ui.cloud_auth_dialog import CloudAuthDialog
+from app.ui.cloud_settings_dialog import CloudSettingsDialog
 
 
 class GeneratorThread(QThread):
@@ -83,13 +77,14 @@ class MainWindow(QMainWindow):
         self.global_output_dir = self.config_data.get('global_output_path', str(get_output_dir()))
         self.generator_thread = None
         
-        # Initialize OneDrive
-        self.setup_onedrive()
+        # Initialize Cloud API Client
+        cloud_url = getattr(self.config, 'cloud_url', '') or 'http://localhost:5000'
+        self.api_client = CloudAPIClient(cloud_url, self.config.config_dir)
         
         # Initialize Schedule Manager
         self.schedule_manager = ScheduleManager(
             config=self.config,
-            onedrive_client=self.onedrive_client if self.onedrive_enabled else None
+            onedrive_client=None  # No OneDrive in desktop app
         )
         
         self.setWindowTitle("Lab Sheet Generator V3.0")
@@ -98,29 +93,6 @@ class MainWindow(QMainWindow):
         
         self.init_menu()
         self.init_ui()
-    
-    def setup_onedrive(self):
-        """Setup OneDrive components."""
-        if ONEDRIVE_AVAILABLE:
-            try:
-                client_id = get_client_id()
-                self.onedrive_client = OneDriveClient(
-                    client_id=client_id,
-                    config_dir=self.config.config_dir
-                )
-                self.sync_manager = SyncManager(
-                    config=self.config,
-                    onedrive_client=self.onedrive_client
-                )
-                self.onedrive_enabled = True
-            except ValueError:
-                self.onedrive_client = None
-                self.sync_manager = None
-                self.onedrive_enabled = False
-        else:
-            self.onedrive_client = None
-            self.sync_manager = None
-            self.onedrive_enabled = False
     
     def set_white_theme(self):
         """Set white color scheme."""
@@ -153,6 +125,22 @@ class MainWindow(QMainWindow):
         settings_menu.addAction(self.create_action("Edit Configuration", self.edit_configuration))
         settings_menu.addAction(self.create_action("Manage Schedules", self.open_schedule_manager))
         settings_menu.addAction(self.create_action("Reset Configuration", self.reset_configuration))
+        
+        # Cloud menu (NEW!)
+        cloud_menu = menubar.addMenu("☁️ Cloud")
+        
+        # Login/Logout
+        if self.api_client.is_authenticated():
+            user_name = self.api_client.user_info.get('name', 'User') if self.api_client.user_info else 'User'
+            cloud_menu.addAction(self.create_action(f"👤 {user_name}", lambda: None)).setEnabled(False)
+            cloud_menu.addSeparator()
+            cloud_menu.addAction(self.create_action("Logout", self.handle_cloud_logout))
+        else:
+            cloud_menu.addAction(self.create_action("Login to Cloud", self.show_cloud_login))
+        
+        cloud_menu.addSeparator()
+        cloud_menu.addAction(self.create_action("Cloud Settings", self.show_cloud_settings))
+        cloud_menu.addAction(self.create_action("Sync Modules to Cloud", self.sync_modules_to_cloud))
         
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -189,11 +177,6 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.create_header())
         main_layout.addWidget(self.create_info_section())
         main_layout.addWidget(self.create_logo_section())
-        
-        # OneDrive section
-        if self.onedrive_enabled:
-            main_layout.addWidget(self.create_onedrive_section())
-        
         main_layout.addWidget(self.create_generator_section())
         main_layout.addLayout(self.create_button_section())
         
@@ -282,36 +265,6 @@ class MainWindow(QMainWindow):
         group.setLayout(layout)
         return group
     
-    def create_onedrive_section(self):
-        """Create OneDrive section."""
-        group = QGroupBox("☁️ Cloud Sync (OneDrive)")
-        group.setStyleSheet("""
-            QGroupBox {
-                font-size: 16px;
-                font-weight: 600;
-                border: 2px solid #e1e4e8;
-                border-radius: 8px;
-                padding-top: 16px;
-                margin-top: 8px;
-            }
-        """)
-        
-        layout = QVBoxLayout()
-        
-        if self.onedrive_enabled:
-            self.onedrive_widget = OneDriveWidget(
-                self.onedrive_client,
-                self.sync_manager,
-                self.config,
-                self
-            )
-            self.onedrive_widget.connection_changed.connect(self.on_onedrive_connection_changed)
-            layout.addWidget(self.onedrive_widget)
-        else:
-            layout.addWidget(OneDriveSetupWidget(self))
-        
-        group.setLayout(layout)
-        return group
     
     def create_generator_section(self):
         """Create generator controls section."""
@@ -755,15 +708,119 @@ class MainWindow(QMainWindow):
     # ==========================================
     # OneDrive Integration
     # ==========================================
+    # Cloud Integration Methods
+    # ==========================================
     
-    def on_onedrive_connection_changed(self, connected):
-        """Handle OneDrive connection state change."""
-        if connected:
-            self.status_label.setText("✓ OneDrive connected!")
-            self.status_label.setStyleSheet("color: #28a745; font-weight: 600;")
-        else:
-            self.status_label.setText("OneDrive disconnected")
-            self.status_label.setStyleSheet("color: #6a737d; font-weight: 600;")
+    def show_cloud_login(self):
+        """Show cloud login dialog — redirect to settings if URL not configured."""
+        url = self.api_client.base_url
+        if 'localhost' in url or '127.0.0.1' in url:
+            QMessageBox.information(
+                self,
+                "Set Cloud URL First",
+                "Before logging in, you need to tell the app where your cloud service is.\n\n"
+                "Opening Cloud Settings now — enter your PythonAnywhere URL then click Save."
+            )
+            self.show_cloud_settings()
+            return
+
+        dialog = CloudAuthDialog(self.api_client, self)
+        dialog.authenticated.connect(self.on_cloud_authenticated)
+        dialog.exec()
+    
+    def show_cloud_settings(self):
+        """Show cloud settings dialog."""
+        dialog = CloudSettingsDialog(self.config, self.api_client, self)
+        if dialog.exec():
+            # Reload menu to update login status
+            self.menuBar().clear()
+            self.init_menu()
+    
+    def handle_cloud_logout(self):
+        """Handle cloud logout."""
+        reply = QMessageBox.question(
+            self,
+            "Confirm Logout",
+            "Are you sure you want to logout from the cloud service?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.api_client.logout()
+            QMessageBox.information(self, "Success", "Logged out successfully!")
+            # Reload menu
+            self.menuBar().clear()
+            self.init_menu()
+    
+    def sync_modules_to_cloud(self):
+        """Sync local modules to cloud."""
+        if not self.api_client.is_authenticated():
+            QMessageBox.warning(
+                self,
+                "Not Logged In",
+                "Please login to the cloud service first.\n\n"
+                "Go to Cloud → Login to Cloud"
+            )
+            return
+        
+        # Get local modules
+        config_data = self.config.load_config()
+        if not config_data or not config_data.get('modules'):
+            QMessageBox.warning(
+                self,
+                "No Modules",
+                "You don't have any modules configured locally.\n\n"
+                "Add modules first in Settings → Edit Configuration"
+            )
+            return
+        
+        try:
+            # Sync to cloud
+            result = self.api_client.sync_modules_from_local(config_data['modules'])
+            
+            if result['success']:
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"✓ Synced {len(result['synced'])} module(s) to cloud!\n\n"
+                    f"You can now create schedules from Cloud menu."
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Partial Success",
+                    f"Synced {len(result['synced'])} module(s), "
+                    f"but {len(result['errors'])} failed.\n\n"
+                    f"Errors: {', '.join(result['errors'])}"
+                )
+        
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Sync Failed",
+                f"Failed to sync modules to cloud:\n\n{str(e)}\n\n"
+                f"Make sure the cloud service is running and you're connected to the internet."
+            )
+    
+    def on_cloud_authenticated(self):
+        """Handle successful cloud authentication."""
+        self.status_label.setText("✓ Logged in to cloud service!")
+        self.status_label.setStyleSheet("color: #28a745; font-weight: 600;")
+        
+        # Reload menu to show user name
+        self.menuBar().clear()
+        self.init_menu()
+        
+        # Ask if user wants to sync modules
+        reply = QMessageBox.question(
+            self,
+            "Sync Modules?",
+            "Would you like to sync your local modules to the cloud now?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.sync_modules_to_cloud()
     
     # ==========================================
     # About Dialog

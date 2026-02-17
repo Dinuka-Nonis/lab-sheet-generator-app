@@ -1,223 +1,215 @@
 """
-Cloud settings and management dialog
+Cloud settings dialog — with improved connection testing and auto https fix
 """
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QMessageBox, QGroupBox,
-    QFormLayout, QTextEdit
+    QFormLayout, QApplication
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 import logging
+import requests
 
 logger = logging.getLogger(__name__)
 
 
 class CloudSettingsDialog(QDialog):
-    """Dialog for cloud service configuration."""
-    
+
     def __init__(self, config, api_client, parent=None):
         super().__init__(parent)
         self.config = config
         self.api_client = api_client
-        
         self.setWindowTitle("Cloud Service Settings")
-        self.resize(600, 500)
+        self.resize(560, 400)
         self.setModal(True)
-        
         self.init_ui()
         self.load_settings()
-    
+
     def init_ui(self):
-        """Initialize UI."""
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Title
+        layout.setSpacing(18)
+        layout.setContentsMargins(24, 24, 24, 24)
+
         title = QLabel("Cloud Service Configuration")
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title.setFont(title_font)
+        f = QFont(); f.setPointSize(15); f.setBold(True)
+        title.setFont(f)
         layout.addWidget(title)
-        
-        # Connection settings
+
+        tip = QLabel(
+            "💡  Use <b>https://</b> for PythonAnywhere:<br>"
+            "<b>https://DinukaNonis.pythonanywhere.com</b>"
+        )
+        tip.setTextFormat(Qt.RichText)
+        tip.setWordWrap(True)
+        tip.setStyleSheet(
+            "background:#e8f4fd;border:1px solid #bee5eb;"
+            "border-radius:6px;padding:10px;font-size:12px;color:#0c5460;"
+        )
+        layout.addWidget(tip)
+
         conn_group = QGroupBox("Connection")
         conn_layout = QFormLayout()
         conn_layout.setSpacing(12)
-        
+
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("https://your-app.onrender.com")
-        self.url_input.setMinimumHeight(40)
+        self.url_input.setPlaceholderText("https://DinukaNonis.pythonanywhere.com")
+        self.url_input.setMinimumHeight(38)
         conn_layout.addRow("Cloud URL:", self.url_input)
-        
-        # Test button
-        test_btn = QPushButton("Test Connection")
-        test_btn.setMinimumHeight(40)
-        test_btn.clicked.connect(self.test_connection)
-        conn_layout.addRow("", test_btn)
-        
+
+        self.test_btn = QPushButton("Test Connection")
+        self.test_btn.setMinimumHeight(38)
+        self.test_btn.setStyleSheet(
+            "QPushButton{background:#0366d6;color:white;border:none;"
+            "border-radius:6px;font-weight:600;}"
+            "QPushButton:hover{background:#0256c2;}"
+            "QPushButton:disabled{background:#aaa;}"
+        )
+        self.test_btn.clicked.connect(self.test_connection)
+        conn_layout.addRow("", self.test_btn)
+
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        self.status_label.setMinimumHeight(60)
+        conn_layout.addRow("", self.status_label)
+
         conn_group.setLayout(conn_layout)
         layout.addWidget(conn_group)
-        
-        # Account info
-        if self.api_client.is_authenticated():
-            account_group = QGroupBox("Account")
-            account_layout = QVBoxLayout()
-            account_layout.setSpacing(10)
-            
-            user_info = self.api_client.user_info or {}
-            
-            info_text = f"""
-<b>Name:</b> {user_info.get('name', 'N/A')}<br>
-<b>Student ID:</b> {user_info.get('student_id', 'N/A')}<br>
-<b>Modules:</b> {user_info.get('modules_count', 0)}<br>
-<b>Schedules:</b> {user_info.get('schedules_count', 0)}
-            """
-            
-            info_label = QLabel(info_text)
-            info_label.setStyleSheet("""
-                background-color: #f6f8fa;
-                padding: 15px;
-                border-radius: 6px;
-                font-size: 13px;
-            """)
-            account_layout.addWidget(info_label)
-            
-            logout_btn = QPushButton("Logout")
-            logout_btn.setMinimumHeight(40)
-            logout_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #d73a49;
-                    color: white;
-                    font-weight: 600;
-                    border: none;
-                    border-radius: 6px;
-                }
-                QPushButton:hover {
-                    background-color: #cb2431;
-                }
-            """)
-            logout_btn.clicked.connect(self.handle_logout)
-            account_layout.addWidget(logout_btn)
-            
-            account_group.setLayout(account_layout)
-            layout.addWidget(account_group)
-        
-        # Buttons
+
         layout.addStretch()
-        
+
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10)
-        
         save_btn = QPushButton("Save")
-        save_btn.setMinimumHeight(45)
-        save_btn.setMinimumWidth(120)
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0366d6;
-                color: white;
-                font-size: 14px;
-                font-weight: 600;
-                border: none;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #0256c2;
-            }
-        """)
-        save_btn.clicked.connect(self.save_settings)
-        btn_layout.addWidget(save_btn)
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setMinimumHeight(45)
-        cancel_btn.setMinimumWidth(120)
-        cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
-        
-        layout.addLayout(btn_layout)
-        
-        self.setLayout(layout)
-    
-    def load_settings(self):
-        """Load current settings."""
-        cloud_url = getattr(self.config, 'cloud_url', '') or ''
-        self.url_input.setText(cloud_url)
-    
-    def save_settings(self):
-        """Save settings."""
-        url = self.url_input.text().strip()
-        
-        if url and not url.startswith('http'):
-            QMessageBox.warning(
-                self,
-                "Invalid URL",
-                "URL must start with http:// or https://"
-            )
-            return
-        
-        # Save to config
-        self.config.save_cloud_settings(bool(url), url)
-        
-        # Update API client
-        if url:
-            self.api_client.base_url = url.rstrip('/')
-        
-        QMessageBox.information(self, "Success", "Settings saved successfully!")
-        self.accept()
-    
-    def test_connection(self):
-        """Test connection to cloud service."""
-        url = self.url_input.text().strip()
-        
-        if not url:
-            QMessageBox.warning(self, "Error", "Please enter a cloud URL")
-            return
-        
-        # Temporarily set URL for testing
-        old_url = self.api_client.base_url
-        self.api_client.base_url = url.rstrip('/')
-        
-        try:
-            if self.api_client.test_connection():
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    "✓ Connected to cloud service successfully!"
-                )
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Connection Failed",
-                    "Could not connect to cloud service.\n\nPlease check:\n"
-                    "• URL is correct\n"
-                    "• Service is running\n"
-                    "• Internet connection"
-                )
-        
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Connection test failed:\n{str(e)}"
-            )
-        
-        finally:
-            # Restore original URL
-            self.api_client.base_url = old_url
-    
-    def handle_logout(self):
-        """Handle logout."""
-        reply = QMessageBox.question(
-            self,
-            "Confirm Logout",
-            "Are you sure you want to logout?\n\nYou will need to login again to use cloud features.",
-            QMessageBox.Yes | QMessageBox.No
+        save_btn.setMinimumHeight(42)
+        save_btn.setStyleSheet(
+            "QPushButton{background:#0366d6;color:white;border:none;"
+            "border-radius:6px;font-size:14px;font-weight:600;}"
+            "QPushButton:hover{background:#0256c2;}"
         )
-        
-        if reply == QMessageBox.Yes:
-            self.api_client.logout()
-            QMessageBox.information(self, "Success", "Logged out successfully!")
-            self.accept()
+        save_btn.clicked.connect(self.save_settings)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setMinimumHeight(42)
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+        self.setLayout(layout)
+
+    def load_settings(self):
+        url = getattr(self.config, 'cloud_url', '') or ''
+        self.url_input.setText(url)
+
+    def _auto_fix_url(self, url: str) -> str:
+        """Auto-upgrade http to https for PythonAnywhere."""
+        url = url.strip().rstrip('/')
+        if 'pythonanywhere.com' in url and url.startswith('http://'):
+            url = 'https://' + url[7:]
+        return url
+
+    def save_settings(self):
+        url = self._auto_fix_url(self.url_input.text())
+        self.url_input.setText(url)
+
+        if url and not url.startswith('http'):
+            QMessageBox.warning(self, "Invalid URL", "URL must start with https://")
+            return
+
+        self.config.save_cloud_settings(bool(url), url)
+        if url:
+            self.api_client.base_url = url
+        QMessageBox.information(self, "Saved", "Settings saved!")
+        self.accept()
+
+    def test_connection(self):
+        """Test with full diagnosis."""
+        url = self._auto_fix_url(self.url_input.text())
+        if not url:
+            QMessageBox.warning(self, "Error", "Enter a URL first")
+            return
+
+        self.url_input.setText(url)  # show fixed url
+        self.test_btn.setEnabled(False)
+        self.test_btn.setText("Testing… (up to 25s)")
+        self.status_label.setText("⏳ Connecting…")
+        self.status_label.setStyleSheet("color:#856404;")
+        QApplication.processEvents()
+
+        try:
+            resp = requests.get(
+                f"{url}/",
+                timeout=25,
+                allow_redirects=True,
+                headers={'User-Agent': 'LabSheetGenerator/3.0'}
+            )
+
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    self.status_label.setText(
+                        f"✅  Connected!  "
+                        f"Status: {data.get('status','running')}  "
+                        f"· Users: {data.get('users', 0)}"
+                    )
+                    self.status_label.setStyleSheet(
+                        "color:#155724;background:#d4edda;"
+                        "padding:8px;border-radius:4px;font-weight:600;"
+                    )
+                except Exception:
+                    self.status_label.setText("✅  Connected!")
+                    self.status_label.setStyleSheet(
+                        "color:#155724;font-weight:600;"
+                    )
+
+            else:
+                self.status_label.setText(
+                    f"⚠️  Server replied: HTTP {resp.status_code}\n"
+                    f"Check PythonAnywhere → Web → Error log"
+                )
+                self.status_label.setStyleSheet("color:#856404;")
+
+        except requests.exceptions.SSLError:
+            # Try http fallback
+            try:
+                http_url = url.replace('https://', 'http://')
+                resp2 = requests.get(f"{http_url}/", timeout=15, allow_redirects=True)
+                if resp2.status_code == 200:
+                    self.url_input.setText(http_url)
+                    self.status_label.setText(
+                        "✅  Connected via http://  (URL updated)"
+                    )
+                    self.status_label.setStyleSheet(
+                        "color:#155724;font-weight:600;"
+                    )
+                else:
+                    self.status_label.setText("⚠️  SSL error. Try http:// instead.")
+                    self.status_label.setStyleSheet("color:#856404;")
+            except Exception:
+                self.status_label.setText("❌  SSL error and http fallback also failed.")
+                self.status_label.setStyleSheet("color:#721c24;")
+
+        except requests.exceptions.ConnectionError:
+            self.status_label.setText(
+                "❌  Cannot reach the server.\n"
+                "• Check the URL is exactly right\n"
+                "• Open PythonAnywhere → Web tab → click Reload\n"
+                "• Make sure virtualenv path is set"
+            )
+            self.status_label.setStyleSheet("color:#721c24;")
+
+        except requests.exceptions.Timeout:
+            self.status_label.setText(
+                "⏱  Timed out (25s).\n"
+                "PythonAnywhere free apps can be slow to start.\n"
+                "Click Save and try Register — it may still work."
+            )
+            self.status_label.setStyleSheet("color:#856404;")
+
+        except Exception as e:
+            self.status_label.setText(f"❌  {str(e)[:140]}")
+            self.status_label.setStyleSheet("color:#721c24;")
+
+        finally:
+            self.test_btn.setEnabled(True)
+            self.test_btn.setText("Test Connection")
