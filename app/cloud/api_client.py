@@ -301,50 +301,51 @@ class CloudAPIClient:
     # ========================================
     
     def sync_modules_from_local(self, local_modules: List[Dict]) -> Dict:
-        """
-        Sync local modules to cloud.
-        
-        Args:
-            local_modules: List of local module configs
-            
-        Returns:
-            Sync result
-        """
+        """Sync local modules to cloud. Local modules use key 'code', cloud uses 'code'."""
         synced = []
         errors = []
-        
+
+        try:
+            cloud_modules = self.get_modules()
+        except Exception as e:
+            return {'synced': [], 'errors': [str(e)]}
+
         for module in local_modules:
             try:
-                # Check if module exists on cloud
-                cloud_modules = self.get_modules()
+                # Local config uses 'code' and 'name' keys
+                code = module.get('code') or module.get('module_code')
+                name = module.get('name') or module.get('module_name')
+
+                if not code or not name:
+                    logger.warning(f"Skipping module with missing code/name: {module}")
+                    continue
+
                 existing = next(
-                    (m for m in cloud_modules if m['code'] == module['module_code']),
+                    (m for m in cloud_modules if m['code'] == code),
                     None
                 )
                 
                 if existing:
-                    # Update existing
                     self.update_module(
                         existing['id'],
-                        name=module['module_name'],
+                        name=name,
                         template=module.get('template', 'classic'),
                         sheet_type=module.get('sheet_type', 'Practical')
                     )
                 else:
-                    # Create new
                     self.create_module(
-                        code=module['module_code'],
-                        name=module['module_name'],
+                        code=code,
+                        name=name,
                         template=module.get('template', 'classic'),
                         sheet_type=module.get('sheet_type', 'Practical')
                     )
-                
-                synced.append(module['module_code'])
-                
+
+                synced.append(code)
+
             except Exception as e:
-                logger.error(f"Error syncing module {module.get('module_code')}: {e}")
+                logger.error(f"Error syncing module {module}: {e}")
                 errors.append(str(e))
-        
+
         return {
             'synced': synced,
             'errors': errors,

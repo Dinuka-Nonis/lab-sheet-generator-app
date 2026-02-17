@@ -205,10 +205,11 @@ class ScheduleWindow(QWidget):
     
     schedules_updated = Signal()
     
-    def __init__(self, schedule_manager, config, parent=None):
+    def __init__(self, schedule_manager, config, api_client=None, parent=None):
         super().__init__(parent)
         self.schedule_manager = schedule_manager
         self.config = config
+        self.api_client = api_client  # passed in directly — no parent chain needed
         
         self.setWindowTitle("Manage Lab Schedules")
         self.setMinimumSize(900, 600)
@@ -563,14 +564,8 @@ class ScheduleWindow(QWidget):
         if reply != QMessageBox.Yes:
             return
 
-        # Get api_client from parent main window
-        api_client = None
-        parent = self.parent()
-        while parent is not None:
-            if hasattr(parent, 'api_client'):
-                api_client = parent.api_client
-                break
-            parent = parent.parent() if hasattr(parent, 'parent') else None
+        # Use api_client passed directly into this window
+        api_client = self.api_client
 
         if not api_client or not api_client.is_authenticated():
             QMessageBox.information(

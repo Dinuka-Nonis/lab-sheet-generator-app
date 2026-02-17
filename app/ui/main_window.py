@@ -143,7 +143,6 @@ class MainWindow(QMainWindow):
         
         cloud_menu.addSeparator()
         cloud_menu.addAction(self.create_action("Cloud Settings", self.show_cloud_settings))
-        cloud_menu.addAction(self.create_action("Sync Modules to Cloud", self.sync_modules_to_cloud))
         
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -696,7 +695,8 @@ class MainWindow(QMainWindow):
         self.schedule_window = ScheduleWindow(
             schedule_manager=self.schedule_manager,
             config=self.config,
-            parent=None  # No parent so it's independent
+            api_client=self.api_client,
+            parent=None
         )
         self.schedule_window.schedules_updated.connect(self.on_schedules_updated)
         self.schedule_window.show()
