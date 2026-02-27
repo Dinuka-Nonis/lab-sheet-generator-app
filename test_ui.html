@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CourseWeb UI Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Include Extension Styles -->
+    <link rel="stylesheet" href="content.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .mock-moodle-content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="mock-moodle-content">
+        <h1>Mock Moodle Page</h1>
+        <p>This is a dummy page to test the LabSheet Tracker UI locally.</p>
+        <p>Click the yellow floating button in the bottom right to open the tracker.</p>
+    </div>
+
+    <!-- Mock Data Injection -->
+    <script>
+        // Mock the Moodle session key
+        window.M = { cfg: { sesskey: "mock_sesskey_123" } };
+
+        // Mock the Chrome storage API since we're running locally in a browser tab
+        window.chrome = {
+            storage: {
+                local: {
+                    get: function (keys, callback) {
+                        const result = {};
+                        const cacheKeyPattern = /cwLabsheetCache:v1/;
+                        keys.forEach(key => {
+                            if (cacheKeyPattern.test(key)) {
+                                // Inject some mock data for the current month
+                                const now = new Date();
+                                const currentKey = `cwLabsheetCache:v1:null`; // 'null' is origin for local file
+
+                                // Mock results
+                                const mockResults = [
+                                    {
+                                        eventName: "Lab 01 Submission",
+                                        assignmentName: "Lab 01 Submission",
+                                        moduleName: "SE3032",
+                                        url: "#",
+                                        dueDate: "10 Feb 2026, 11:59 PM",
+                                        submissionStatus: "Submitted for grading",
+                                        gradingStatus: "Graded",
+                                        timeRemaining: "Submitted",
+                                        timestart: Date.now() - 100000
+                                    },
+                                    {
+                                        eventName: "Practical 02",
+                                        assignmentName: "Practical 02",
+                                        moduleName: "SE3040",
+                                        url: "#",
+                                        dueDate: "15 Feb 2026, 11:59 PM",
+                                        submissionStatus: "No attempt",
+                                        gradingStatus: "Not graded",
+                                        timeRemaining: "3 days early",
+                                        timestart: Date.now() + 100000
+                                    },
+                                    {
+                                        eventName: "Lab 02 Submission",
+                                        assignmentName: "Lab 02 Submission",
+                                        moduleName: "SE3032",
+                                        url: "#",
+                                        dueDate: "18 Feb 2026, 11:59 PM",
+                                        submissionStatus: "No attempt",
+                                        gradingStatus: "Not graded",
+                                        timeRemaining: "6 days early",
+                                        timestart: Date.now() + 200000
+                                    },
+                                    {
+                                        eventName: "Assignment 1",
+                                        assignmentName: "Assignment 1",
+                                        moduleName: "IT3010",
+                                        url: "#",
+                                        dueDate: "05 Feb 2026, 11:59 PM",
+                                        submissionStatus: "No attempt",
+                                        gradingStatus: "Not graded",
+                                        timeRemaining: "Overdue by 2 days",
+                                        timestart: Date.now() - 300000
+                                    }
+                                ];
+
+                                // Map the key appropriately
+                                const dataObj = {};
+                                dataObj[`${now.getFullYear()}-${now.getMonth() + 1}`] = {
+                                    updatedAt: Date.now(),
+                                    data: mockResults
+                                };
+                                result[key] = dataObj;
+                            } else {
+                                // Just try local storage fallback
+                                try {
+                                    const raw = localStorage.getItem(key);
+                                    result[key] = raw ? JSON.parse(raw) : null;
+                                } catch (e) { }
+                            }
+                        });
+
+                        // Call callback async
+                        setTimeout(() => callback(result), 10);
+                    },
+                    set: function (obj, callback) {
+                        // Just pretend it succeeded
+                        if (callback) setTimeout(callback, 10);
+                    }
+                }
+            },
+            runtime: { lastError: null }
+        };
+
+        // Override fetch to avoid real network requests
+        const originalFetch = window.fetch;
+        window.fetch = function () {
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve([{ data: { weeks: [] } }]),
+                text: () => Promise.resolve("<html></html>")
+            });
+        };
+    </script>
+
+    <!-- Include Extension Script -->
+    <script src="content.js"></script>
+
+</body>
+
+</html>
