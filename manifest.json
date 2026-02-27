@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "CourseWeb LabSheet Tracker",
+  "description": "Scrapes labsheet/practical submission events from the CourseWeb calendar and generates downloadable DOCX templates.",
+  "version": "1.3.0",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "labsheet-tracker@sliit.lk"
+    }
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://courseweb.sliit.lk/*"
+      ],
+      "js": [
+        "docx-bundle.js",
+        "docx-generator.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage"
+  ]
+}

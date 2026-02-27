@@ -46,3 +46,4 @@ app/ui/assets/logo.png
 
 # Config
 config.json
+/node_modules
